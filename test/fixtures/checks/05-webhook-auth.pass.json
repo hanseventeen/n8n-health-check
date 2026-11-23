@@ -1,0 +1,65 @@
+{
+  "description": "Webhook uses header auth; an inactive open webhook is ignored.",
+  "expect": {
+    "check": 5,
+    "status": "green"
+  },
+  "now": "2026-11-20T09:00:00.000Z",
+  "workflows": [
+    {
+      "id": "wf-7",
+      "name": "Tenant intake",
+      "active": true,
+      "nodes": [
+        {
+          "id": "webhook",
+          "name": "Webhook",
+          "type": "n8n-nodes-base.webhook",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "path": "maintenance",
+            "httpMethod": "POST",
+            "authentication": "headerAuth"
+          }
+        }
+      ],
+      "connections": {},
+      "settings": {},
+      "tags": [],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2026-10-21T09:00:00.000Z"
+    },
+    {
+      "id": "wf-8",
+      "name": "Old test hook",
+      "active": false,
+      "nodes": [
+        {
+          "id": "webhook",
+          "name": "Webhook",
+          "type": "n8n-nodes-base.webhook",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "path": "maintenance",
+            "httpMethod": "POST"
+          }
+        }
+      ],
+      "connections": {},
+      "settings": {},
+      "tags": [],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2026-10-21T09:00:00.000Z"
+    }
+  ],
+  "executions": [],
+  "audit": null
+}

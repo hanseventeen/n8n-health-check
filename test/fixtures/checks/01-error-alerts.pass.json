@@ -1,0 +1,111 @@
+{
+  "description": "Every active workflow points to a working error workflow.",
+  "expect": {
+    "check": 1,
+    "status": "green"
+  },
+  "now": "2026-11-20T09:00:00.000Z",
+  "workflows": [
+    {
+      "id": "wf-err",
+      "name": "Error alert handler",
+      "active": true,
+      "nodes": [
+        {
+          "id": "error-trigger",
+          "name": "Error Trigger",
+          "type": "n8n-nodes-base.errorTrigger",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {}
+        },
+        {
+          "id": "post-alert",
+          "name": "Post alert",
+          "type": "n8n-nodes-base.slack",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "text": "A workflow failed"
+          }
+        }
+      ],
+      "connections": {},
+      "settings": {},
+      "tags": [],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2026-10-21T09:00:00.000Z"
+    },
+    {
+      "id": "wf-1",
+      "name": "Rent reminder SMS",
+      "active": true,
+      "nodes": [
+        {
+          "id": "schedule",
+          "name": "Schedule",
+          "type": "n8n-nodes-base.scheduleTrigger",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "rule": {
+              "interval": [
+                {
+                  "field": "days",
+                  "daysInterval": 1
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "connections": {},
+      "settings": {
+        "errorWorkflow": "wf-err"
+      },
+      "tags": [],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2026-10-21T09:00:00.000Z"
+    },
+    {
+      "id": "wf-2",
+      "name": "Tenant intake",
+      "active": true,
+      "nodes": [
+        {
+          "id": "webhook",
+          "name": "Webhook",
+          "type": "n8n-nodes-base.webhook",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "path": "maintenance",
+            "httpMethod": "POST",
+            "authentication": "headerAuth"
+          }
+        }
+      ],
+      "connections": {},
+      "settings": {
+        "errorWorkflow": "wf-err"
+      },
+      "tags": [],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2026-10-21T09:00:00.000Z"
+    }
+  ],
+  "executions": [],
+  "audit": null
+}

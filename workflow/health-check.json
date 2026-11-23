@@ -1,0 +1,241 @@
+{
+  "id": "mrrHealthCheck01",
+  "name": "Automation Health Check",
+  "active": false,
+  "nodes": [
+    {
+      "id": "a0000000-0000-4000-8000-000000000001",
+      "name": "Run health check",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "a0000000-0000-4000-8000-000000000002",
+      "name": "Get workflows",
+      "type": "n8n-nodes-base.n8n",
+      "typeVersion": 1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "resource": "workflow",
+        "operation": "getAll",
+        "returnAll": true,
+        "filters": {}
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "a0000000-0000-4000-8000-000000000003",
+      "name": "Get executions",
+      "type": "n8n-nodes-base.n8n",
+      "typeVersion": 1,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "resource": "execution",
+        "operation": "getAll",
+        "returnAll": true,
+        "filters": {},
+        "options": {}
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "a0000000-0000-4000-8000-000000000004",
+      "name": "Security audit",
+      "type": "n8n-nodes-base.n8n",
+      "typeVersion": 1,
+      "position": [
+        660,
+        300
+      ],
+      "parameters": {
+        "resource": "audit",
+        "operation": "generate",
+        "additionalOptions": {
+          "categories": [
+            "instance",
+            "nodes"
+          ]
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "a0000000-0000-4000-8000-000000000005",
+      "name": "Run checks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Built by scripts/build-workflow.js from src/checks.js and src/report.js. Edit those, not this.\nconst __checks = (function () {\n  const module = { exports: {} };\n  \n'use strict';\n\n/*\n * n8n Automation Health Check: check logic.\n *\n * Pure functions only. No network, no file access, no npm packages.\n * The same code runs in the offline tests and inside an n8n Code node.\n *\n * Input:\n *   workflows  - array from GET /api/v1/workflows\n *   executions - array from GET /api/v1/executions (includeData=false)\n *   audit      - object from POST /api/v1/audit, or null\n *   now        - ISO date string for \"today\" (passed in so tests are repeatable)\n *   config     - optional overrides, see DEFAULT_CONFIG\n *\n * Output: an array of 10 check results. A result never contains a secret\n * value. It only names workflows, nodes and field paths.\n */\n\nconst DEFAULT_CONFIG = {\n  failureWindowDays: 7,\n  minRunsForRate: 5,\n  failAmber: 0.10,\n  failRed: 0.25,\n  webhookExpectDays: 7,\n  abandonedDays: 90,\n  backupMaxAgeDays: 2,\n  // Fallback for check 7 when the audit report is not available.\n  currentVersion: null,\n  latestStableVersion: null,\n  // Workflows to leave out of every check, by exact name (for example the\n  // health check itself, or another project sharing the demo instance).\n  excludeWorkflowNames: [],\n};\n\nconst DAY = 24 * 60 * 60 * 1000;\nconst HOUR = 60 * 60 * 1000;\n\nconst TYPE = {\n  errorTrigger: 'n8n-nodes-base.errorTrigger',\n  manualTrigger: 'n8n-nodes-base.manualTrigger',\n  scheduleTrigger: 'n8n-nodes-base.scheduleTrigger',\n  cron: 'n8n-nodes-base.cron',\n  webhook: 'n8n-nodes-base.webhook',\n  httpRequest: 'n8n-nodes-base.httpRequest',\n  executeWorkflow: 'n8n-nodes-base.executeWorkflow',\n};\n\n// Nodes that send something to the outside world (used by check 10).\nconst OUTBOUND_TYPES = new Set([\n  'n8n-nodes-base.httpRequest',\n  'n8n-nodes-base.twilio',\n  'n8n-nodes-base.gmail',\n  'n8n-nodes-base.emailSend',\n  'n8n-nodes-base.slack',\n  'n8n-nodes-base.telegram',\n  'n8n-nodes-base.microsoftOutlook',\n  'n8n-nodes-base.sendGrid',\n  'n8n-nodes-base.mailgun',\n  'n8n-nodes-base.whatsApp',\n]);\n\n/* ---------- small helpers ---------- */\n\nfunction isActive(wf) {\n  if (typeof wf.active === 'boolean') return wf.active;\n  return wf.activeVersionId != null;\n}\n\nfunction liveNodes(wf) {\n  return (wf.nodes || []).filter((n) => !n.disabled);\n}\n\nfunction tagNames(wf) {\n  return (wf.tags || []).map((t) => String(typeof t === 'string' ? t : t.name).toLowerCase());\n}\n\nfunction hasNodeType(wf, type) {\n  return liveNodes(wf).some((n) => n.type === type);\n}\n\nfunction isErrorHandler(wf) {\n  return hasNodeType(wf, TYPE.errorTrigger);\n}\n\nfunction ms(dateString) {\n  const t = Date.parse(dateString);\n  return Number.isNaN(t) ? null : t;\n}\n\nfunction plural(n, one, many) {\n  return `${n} ${n === 1 ? one : many || one + 's'}`;\n}\n\n// Picks the verb that agrees with n: verb(1, 'has', 'have') -> 'has'.\nfunction verb(n, one, many) {\n  return n === 1 ? one : many;\n}\n\nfunction result(number, id, title, status, found, why, fix, items) {\n  return { number, id, title, status, found, why, fix, items: items || [] };\n}\n\nfunction execsByWorkflow(executions) {\n  const map = new Map();\n  for (const e of executions || []) {\n    const key = String(e.workflowId);\n    if (!map.has(key)) map.set(key, []);\n    map.get(key).push(e);\n  }\n  return map;\n}\n\n/* ---------- check 1: error alerts set ---------- */\n\nfunction checkErrorAlerts(ctx) {\n  const handlers = new Set(ctx.workflows.filter(isErrorHandler).map((w) => String(w.id)));\n  const watched = ctx.workflows.filter((w) => isActive(w) && !isErrorHandler(w));\n  const missing = watched.filter((w) => {\n    const target = w.settings && w.settings.errorWorkflow;\n    return !target || !handlers.has(String(target));\n  });\n  const items = missing.map((w) => ({ workflow: w.name, detail: 'no working error workflow set' }));\n  const why = 'When a workflow fails, nobody hears about it unless an error workflow sends an alert.';\n  const fix = 'Create one workflow with an Error Trigger that alerts you, then pick it under Settings > Error workflow in each active workflow.';\n\n  if (watched.length === 0) {\n    return result(1, 'error-alerts', 'Error alerts set', 'green', 'No active workflows to check.', why, fix);\n  }\n  if (handlers.size === 0) {\n    return result(1, 'error-alerts', 'Error alerts set', 'red',\n      `No error workflow exists. ${plural(watched.length, 'active workflow')} would fail silently.`, why, fix, items);\n  }\n  const status = missing.length === 0 ? 'green' : missing.length <= 2 ? 'amber' : 'red';\n  const found = missing.length === 0\n    ? `All ${plural(watched.length, 'active workflow')} have an error workflow.`\n    : `${missing.length} of ${plural(watched.length, 'active workflow')} ${verb(missing.length, 'has', 'have')} no working error workflow.`;\n  return result(1, 'error-alerts', 'Error alerts set', status, found, why, fix, items);\n}\n\n/* ---------- check 2: failure rate ---------- */\n\nfunction checkFailureRate(ctx) {\n  const { config } = ctx;\n  const since = ctx.nowMs - config.failureWindowDays * DAY;\n  const byWf = execsByWorkflow(ctx.executions);\n  const items = [];\n  let worst = 'green';\n  let judged = 0;\n\n  const bump = (s) => {\n    const rank = { green: 0, amber: 1, red: 2 };\n    if (rank[s] > rank[worst]) worst = s;\n  };\n\n  for (const wf of ctx.workflows.filter(isActive)) {\n    const settings = wf.settings || {};\n    if (settings.saveDataErrorExecution === 'none') {\n      items.push({ workflow: wf.name, detail: 'set to not save failed runs, so its failures are invisible' });\n      bump('amber');\n    }\n    const runs = (byWf.get(String(wf.id)) || []).filter((e) => {\n      const t = ms(e.startedAt);\n      return t != null && t >= since && ['success', 'error', 'crashed'].includes(e.status);\n    });\n    if (runs.length < config.minRunsForRate) continue;\n    judged += 1;\n    const failed = runs.filter((e) => e.status === 'error' || e.status === 'crashed').length;\n    const rate = failed / runs.length;\n    if (rate > config.failRed) {\n      bump('red');\n      items.push({ workflow: wf.name, detail: `${failed} of ${runs.length} runs failed (${Math.round(rate * 100)}%)` });\n    } else if (rate >= config.failAmber) {\n      bump('amber');\n      items.push({ workflow: wf.name, detail: `${failed} of ${runs.length} runs failed (${Math.round(rate * 100)}%)` });\n    }\n  }\n\n  const found = items.length === 0\n    ? `No workflow failed more than ${Math.round(config.failAmber * 100)}% of its runs in the last ${config.failureWindowDays} days (${plural(judged, 'workflow')} had enough runs to judge).`\n    : `${plural(items.length, 'workflow')} ${verb(items.length, 'needs', 'need')} a look.`;\n  return result(2, 'failure-rate', `Failure rate (last ${config.failureWindowDays} days)`, worst, found,\n    'A workflow that fails often is doing its job only some of the time.',\n    'Open the failed runs, fix the most common error first, and turn on saving of failed runs so you can see them.',\n    items);\n}\n\n/* ---------- check 3: silently stopped ---------- */\n\nfunction scheduleIntervalMs(node) {\n  const rule = (node.parameters && node.parameters.rule) || {};\n  const intervals = Array.isArray(rule.interval) && rule.interval.length ? rule.interval : [{ field: 'days' }];\n  let smallest = Infinity;\n  for (const iv of intervals) {\n    const field = iv.field || 'days';\n    let size;\n    if (field === 'seconds') size = (iv.secondsInterval || 30) * 1000;\n    else if (field === 'minutes') size = (iv.minutesInterval || 5) * 60 * 1000;\n    else if (field === 'hours') size = (iv.hoursInterval || 1) * HOUR;\n    else if (field === 'days') size = (iv.daysInterval || 1) * DAY;\n    else if (field === 'weeks') size = (iv.weeksInterval || 1) * 7 * DAY;\n    else if (field === 'months') size = (iv.monthsInterval || 1) * 31 * DAY;\n    else size = DAY; // cron expressions: assume daily, see WRITEUP limits\n    smallest = Math.min(smallest, size);\n  }\n  return smallest;\n}\n\nfunction expectTagMs(wf) {\n  for (const tag of tagNames(wf)) {\n    if (tag === 'expect:hourly') return HOUR;\n    if (tag === 'expect:daily') return DAY;\n    if (tag === 'expect:weekly') return 7 * DAY;\n  }\n  return null;\n}\n\nfunction expectedWindowMs(wf, config) {\n  const tagged = expectTagMs(wf);\n  if (tagged) return 2 * tagged;\n  const schedules = liveNodes(wf).filter((n) => n.type === TYPE.scheduleTrigger || n.type === TYPE.cron);\n  if (schedules.length) return 2 * Math.min(...schedules.map(scheduleIntervalMs));\n  return config.webhookExpectDays * DAY;\n}\n\nfunction hasWatchedTrigger(wf) {\n  return liveNodes(wf).some((n) =>\n    n.type !== TYPE.errorTrigger &&\n    n.type !== TYPE.manualTrigger &&\n    (n.type === TYPE.webhook || /trigger$/i.test(n.type) || n.type === TYPE.cron));\n}\n\nfunction describeWindow(windowMs) {\n  if (windowMs < 2 * HOUR) return `${Math.round(windowMs / 60000)} minutes`;\n  if (windowMs < 2 * DAY) return `${Math.round(windowMs / HOUR)} hours`;\n  return `${Math.round(windowMs / DAY)} days`;\n}\n\nfunction checkSilentlyStopped(ctx) {\n  const byWf = execsByWorkflow(ctx.executions);\n  const items = [];\n  const watched = ctx.workflows.filter((w) => isActive(w) && hasWatchedTrigger(w));\n\n  for (const wf of watched) {\n    const windowMs = expectedWindowMs(wf, ctx.config);\n    // Any run counts here. A workflow that runs but fails is loud, and check 2 covers it.\n    // This check is for workflows where nothing runs at all.\n    const starts = (byWf.get(String(wf.id)) || [])\n      .map((e) => ms(e.startedAt))\n      .filter((t) => t != null);\n    const lastRun = starts.length ? Math.max(...starts) : null;\n    // With no run at all, measure from when the workflow was last saved.\n    const since = lastRun != null ? lastRun : ms(wf.updatedAt) || ms(wf.createdAt) || ctx.nowMs;\n    if (ctx.nowMs - since > windowMs) {\n      items.push({\n        workflow: wf.name,\n        detail: lastRun != null\n          ? `no runs at all for over ${describeWindow(windowMs)}`\n          : `has never run, and it has been over ${describeWindow(windowMs)}`,\n      });\n    }\n  }\n\n  const status = items.length === 0 ? 'green' : items.length === 1 ? 'amber' : 'red';\n  const found = items.length === 0\n    ? `All ${plural(watched.length, 'triggered workflow')} ran within their expected window.`\n    : `${plural(items.length, 'active workflow')} ${verb(items.length, 'looks', 'look')} switched on, but nothing has run.`;\n  return result(3, 'silently-stopped', 'Silently stopped workflows', status, found,\n    'A workflow can look switched on while nothing is actually reaching it, so it fails without any error.',\n    'Check that the trigger still fires: the webhook URL is still in use, the schedule is right, and the app sending data has not changed.',\n    items);\n}\n\n/* ---------- check 4: hard-coded secrets ---------- */\n\nconst SECRET_PATTERNS = [\n  /sk-[A-Za-z0-9_-]{16,}/,                                    // OpenAI / Anthropic style\n  /Bearer\\s+[A-Za-z0-9._~+/=-]{16,}/,                          // raw bearer token\n  /eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}/, // JWT\n  /AKIA[0-9A-Z]{16}/,                                          // AWS access key\n  /xox[abprs]-[A-Za-z0-9-]{10,}/,                              // Slack token\n  /gh[pousr]_[A-Za-z0-9]{20,}/,                                // GitHub token\n  /AC[0-9a-f]{32}/,                                            // Twilio account ID (AC + 32 hex)\n];\n\nconst SECRET_NAME = /(api[_-]?key|apikey|token|secret|password|passwd|authorization|auth[_-]?key|private[_-]?key)/i;\n\nfunction looksLikeSecret(name, value) {\n  if (typeof value !== 'string' || value.length < 12) return false;\n  const usesExpression = value.includes('{{');\n  if (SECRET_PATTERNS.some((re) => re.test(value))) {\n    // A pattern inside an expression is still typed in, so it still counts,\n    // unless the whole match comes from $env / $credentials, which can't match the patterns.\n    return true;\n  }\n  if (usesExpression) return false;\n  if (name && SECRET_NAME.test(name) && !/\\s/.test(value) && value.length >= 16) return true;\n  return false;\n}\n\n// Walks every parameter. Yields field paths only, never values.\nfunction findSecretPaths(params, path, out) {\n  if (Array.isArray(params)) {\n    params.forEach((v, i) => findSecretPaths(v, `${path}[${i}]`, out));\n    return out;\n  }\n  if (params && typeof params === 'object') {\n    // n8n stores headers and query params as [{ name, value }].\n    if (typeof params.name === 'string' && 'value' in params && looksLikeSecret(params.name, params.value)) {\n      out.push(`${path} (${params.name})`);\n    }\n    for (const [key, val] of Object.entries(params)) {\n      if (key === 'value' && typeof params.name === 'string') continue; // handled above\n      if (typeof val === 'string') {\n        if (looksLikeSecret(key, val)) out.push(path ? `${path}.${key}` : key);\n      } else {\n        findSecretPaths(val, path ? `${path}.${key}` : key, out);\n      }\n    }\n  }\n  return out;\n}\n\nfunction checkHardcodedSecrets(ctx) {\n  const items = [];\n  for (const wf of ctx.workflows) {\n    for (const node of wf.nodes || []) {\n      const paths = findSecretPaths(node.parameters || {}, '', []);\n      for (const p of paths) {\n        items.push({ workflow: wf.name, node: node.name, detail: `key-like value in field ${p}` });\n      }\n    }\n  }\n  const status = items.length ? 'red' : 'green';\n  const found = items.length\n    ? `Found ${plural(items.length, 'key-like value')} typed directly into nodes. Values are not shown.`\n    : 'No key-like values found in node settings.';\n  return result(4, 'hardcoded-secrets', 'Keys typed into nodes', status, found,\n    'A key typed into a node is visible to anyone who can open or export the workflow.',\n    'Move each key into an n8n credential, then rotate the old key, because it has already been exposed.',\n    items);\n}\n\n/* ---------- check 5: unprotected webhooks ---------- */\n\nfunction checkWebhookAuth(ctx) {\n  const items = [];\n  for (const wf of ctx.workflows.filter(isActive)) {\n    for (const node of liveNodes(wf)) {\n      if (node.type !== TYPE.webhook) continue;\n      const auth = node.parameters && node.parameters.authentication;\n      if (!auth || auth === 'none') {\n        items.push({ workflow: wf.name, node: node.name, detail: 'webhook accepts calls from anyone' });\n      }\n    }\n  }\n  const status = items.length ? 'red' : 'green';\n  const found = items.length\n    ? `${plural(items.length, 'live webhook')} ${verb(items.length, 'has', 'have')} no authentication.`\n    : 'All live webhooks require authentication.';\n  return result(5, 'webhook-auth', 'Webhooks with no login', status, found,\n    'Anyone who finds the URL can send fake data in and trigger the workflow.',\n    'In the Webhook node, set Authentication to Header Auth (or Basic Auth) and give the secret only to the app that calls it.',\n    items);\n}\n\n/* ---------- check 6: HTTP retry / timeout ---------- */\n\nfunction checkHttpResilience(ctx) {\n  const items = [];\n  let total = 0;\n  for (const wf of ctx.workflows.filter(isActive)) {\n    for (const node of liveNodes(wf)) {\n      if (node.type !== TYPE.httpRequest) continue;\n      total += 1;\n      const timeout = node.parameters && node.parameters.options && node.parameters.options.timeout;\n      if (node.retryOnFail !== true && !timeout) {\n        items.push({ workflow: wf.name, node: node.name, detail: 'no retry and no timeout' });\n      }\n    }\n  }\n  let status = 'green';\n  if (items.length) status = items.length / total > 0.5 ? 'red' : 'amber';\n  const found = total === 0\n    ? 'No HTTP Request nodes in active workflows.'\n    : items.length === 0\n      ? `All ${plural(total, 'HTTP Request node')} have a retry or a timeout.`\n      : `${items.length} of ${plural(total, 'HTTP Request node')} ${verb(items.length, 'has', 'have')} neither a retry nor a timeout.`;\n  return result(6, 'http-resilience', 'HTTP calls with no retry or timeout', status, found,\n    'One slow or flaky API call can hang or kill the whole run.',\n    'In each HTTP Request node, turn on \"Retry On Fail\" (3 tries) under Settings, and set a timeout under Options.',\n    items);\n}\n\n/* ---------- check 7: n8n version ---------- */\n\nfunction parseVersion(v) {\n  const m = /^(\\d+)\\.(\\d+)\\.(\\d+)/.exec(String(v || '').replace(/^v/, ''));\n  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;\n}\n\nfunction compareVersions(a, b) {\n  for (let i = 0; i < 3; i += 1) if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1;\n  return 0;\n}\n\nfunction checkVersion(ctx) {\n  const why = 'Old versions miss bug fixes, and sometimes security fixes.';\n  const fix = 'Plan an upgrade: back up first, read the release notes for breaking changes, and test on a copy before the real instance.';\n  const title = 'n8n version up to date';\n  const report = ctx.audit && ctx.audit['Instance Risk Report'];\n\n  if (report && Array.isArray(report.sections)) {\n    const next = [];\n    for (const s of report.sections) if (Array.isArray(s.nextVersions)) next.push(...s.nextVersions);\n    if (next.length === 0) {\n      return result(7, 'version', title, 'green', 'n8n reports no newer version.', why, fix);\n    }\n    const security = next.filter((v) => v.hasSecurityFix);\n    const status = security.length ? 'red' : 'amber';\n    const found = `${plural(next.length, 'newer version')} available` +\n      (security.length ? `, including ${plural(security.length, 'security fix', 'security fixes')}.` : '.');\n    const items = next.map((v) => ({ workflow: '(instance)', detail: `${v.name}${v.hasSecurityFix ? ' (security fix)' : ''}` }));\n    return result(7, 'version', title, status, found, why, fix, items);\n  }\n\n  const cur = parseVersion(ctx.config.currentVersion);\n  const latest = parseVersion(ctx.config.latestStableVersion);\n  if (cur && latest) {\n    const cmp = compareVersions(cur, latest);\n    if (cmp >= 0) return result(7, 'version', title, 'green', `Running ${ctx.config.currentVersion}, the latest stable.`, why, fix);\n    return result(7, 'version', title, 'amber',\n      `Running ${ctx.config.currentVersion}. Latest stable is ${ctx.config.latestStableVersion}. Security fixes unknown without the audit report.`, why, fix);\n  }\n  return result(7, 'version', title, 'amber', 'Could not tell the version: no audit report and no version in config.', why, fix);\n}\n\n/* ---------- check 8: abandoned workflows ---------- */\n\nfunction checkAbandoned(ctx) {\n  const cutoff = ctx.nowMs - ctx.config.abandonedDays * DAY;\n  const items = ctx.workflows\n    .filter((w) => !isActive(w) && (ms(w.updatedAt) || ctx.nowMs) < cutoff)\n    .map((w) => ({ workflow: w.name, detail: `inactive, not changed in over ${ctx.config.abandonedDays} days` }));\n  const status = items.length ? 'amber' : 'green';\n  const found = items.length\n    ? `${plural(items.length, 'workflow')} ${verb(items.length, 'looks', 'look')} abandoned.`\n    : `No inactive workflows older than ${ctx.config.abandonedDays} days.`;\n  return result(8, 'abandoned', 'Abandoned workflows', status, found,\n    'Old, switched-off workflows make it harder to see what is really running, and may still hold old keys.',\n    'Export anything worth keeping, then archive or delete the rest.',\n    items);\n}\n\n/* ---------- check 9: backup workflow ---------- */\n\nfunction isBackupWorkflow(wf) {\n  return tagNames(wf).includes('backup') || /backup/i.test(wf.name || '');\n}\n\nfunction checkBackup(ctx) {\n  const why = 'If the server dies, a backup is the only way to get your workflows back.';\n  const fix = 'Keep one workflow that exports all workflows on a schedule to storage outside this server, with an error alert on it.';\n  const title = 'Backup workflow running';\n  const backups = ctx.workflows.filter(isBackupWorkflow);\n  if (backups.length === 0) {\n    return result(9, 'backup', title, 'red', 'No backup workflow found (looked for a \"backup\" tag or name).', why, fix);\n  }\n  const ids = new Set(backups.map((w) => String(w.id)));\n  const runs = (ctx.executions || [])\n    .filter((e) => ids.has(String(e.workflowId)) && ms(e.startedAt) != null)\n    .sort((a, b) => ms(b.startedAt) - ms(a.startedAt));\n  const names = backups.map((w) => {\n    const last = runs.find((e) => String(e.workflowId) === String(w.id));\n    const state = isActive(w) ? 'active' : 'inactive';\n    const detail = last\n      ? `${state}, last run ${last.status} at ${new Date(ms(last.startedAt)).toISOString().slice(0, 16).replace('T', ' ')} UTC`\n      : `${state}, no recorded runs`;\n    return { workflow: w.name, detail };\n  });\n\n  if (runs.length === 0) return result(9, 'backup', title, 'red', 'A backup workflow exists but has no recorded runs.', why, fix, names);\n  const latest = runs[0];\n  if (latest.status === 'error' || latest.status === 'crashed') {\n    return result(9, 'backup', title, 'red', 'The most recent backup run failed.', why, fix, names);\n  }\n  const lastOk = runs.find((e) => e.status === 'success');\n  if (!lastOk) return result(9, 'backup', title, 'red', 'The backup workflow has never succeeded.', why, fix, names);\n  const ageDays = (ctx.nowMs - ms(lastOk.startedAt)) / DAY;\n  if (ageDays <= ctx.config.backupMaxAgeDays) {\n    return result(9, 'backup', title, 'green', `Last successful backup was ${ageDays < 1 ? 'less than a day' : plural(Math.floor(ageDays), 'day')} ago.`, why, fix, names);\n  }\n  return result(9, 'backup', title, 'amber', `Last successful backup was ${plural(Math.floor(ageDays), 'day')} ago.`, why, fix, names);\n}\n\n/* ---------- check 10: kill switch ---------- */\n\nfunction referencedWorkflowId(node) {\n  const id = node.parameters && node.parameters.workflowId;\n  if (id && typeof id === 'object') return id.value != null ? String(id.value) : null;\n  return id != null ? String(id) : null;\n}\n\nfunction checkKillSwitch(ctx) {\n  const why = 'If something goes wrong (a loop, a bad message, a leaked key), you need one place to stop everything that sends.';\n  const fix = 'Create a workflow tagged \"kill-switch\" that returns on or off, and call it with an Execute Workflow node at the start of every workflow that sends messages or calls APIs.';\n  const title = 'Kill switch in place';\n  const switches = ctx.workflows.filter((w) => tagNames(w).includes('kill-switch'));\n  const switchIds = new Set(switches.map((w) => String(w.id)));\n  const outbound = ctx.workflows.filter((w) =>\n    isActive(w) && !switchIds.has(String(w.id)) && !isErrorHandler(w) &&\n    liveNodes(w).some((n) => OUTBOUND_TYPES.has(n.type)));\n\n  if (switches.length === 0) {\n    return result(10, 'kill-switch', title, outbound.length ? 'red' : 'green',\n      outbound.length\n        ? `No kill switch found. ${plural(outbound.length, 'active workflow')} ${verb(outbound.length, 'sends', 'send')} data out with no way to stop them all at once.`\n        : 'No kill switch, but no active workflows send data out.',\n      why, fix, outbound.map((w) => ({ workflow: w.name, detail: 'sends data out' })));\n  }\n  const skipping = outbound.filter((w) => !liveNodes(w).some((n) =>\n    n.type === TYPE.executeWorkflow && switchIds.has(referencedWorkflowId(n))));\n  const items = skipping.map((w) => ({ workflow: w.name, detail: 'sends data out without checking the kill switch' }));\n  const status = skipping.length === 0 ? 'green' : 'amber';\n  const found = skipping.length === 0\n    ? `Kill switch found, and all ${plural(outbound.length, 'outbound workflow')} check it.`\n    : `Kill switch found, but ${skipping.length} of ${plural(outbound.length, 'outbound workflow')} skip it.`;\n  const partialFix = 'Add an Execute Workflow node that calls the kill switch at the start of each workflow listed below.';\n  return result(10, 'kill-switch', title, status, found, why, skipping.length ? partialFix : fix, items);\n}\n\n/* ---------- run everything ---------- */\n\nconst CHECKS = [\n  checkErrorAlerts,\n  checkFailureRate,\n  checkSilentlyStopped,\n  checkHardcodedSecrets,\n  checkWebhookAuth,\n  checkHttpResilience,\n  checkVersion,\n  checkAbandoned,\n  checkBackup,\n  checkKillSwitch,\n];\n\nfunction runChecks(input) {\n  const config = Object.assign({}, DEFAULT_CONFIG, input.config || {});\n  const excluded = new Set(config.excludeWorkflowNames);\n  const workflows = (input.workflows || []).filter((w) => !excluded.has(w.name));\n  const keptIds = new Set(workflows.map((w) => String(w.id)));\n  const ctx = {\n    workflows,\n    executions: (input.executions || []).filter((e) => keptIds.has(String(e.workflowId))),\n    audit: input.audit || null,\n    nowMs: ms(input.now) || Date.now(),\n    config,\n  };\n  return CHECKS.map((check) => check(ctx));\n}\n\nfunction summarize(results) {\n  const passed = results.filter((r) => r.status === 'green').length;\n  const red = results.filter((r) => r.status === 'red').length;\n  const amber = results.filter((r) => r.status === 'amber').length;\n  let line = `${passed} of ${results.length} checks passed.`;\n  const parts = [];\n  if (red) parts.push(`${red} need attention this week`);\n  if (amber) parts.push(`${amber} this month`);\n  if (parts.length) line += ` ${parts.join(', ')}.`;\n  return { passed, red, amber, total: results.length, line };\n}\n\nmodule.exports = {\n  DEFAULT_CONFIG,\n  runChecks,\n  summarize,\n  // exported for tests\n  findSecretPaths,\n  looksLikeSecret,\n  scheduleIntervalMs,\n  parseVersion,\n};\n\n  return module.exports;\n})();\n\nconst __report = (function () {\n  const module = { exports: {} };\n  const require = () => __checks;\n'use strict';\n\n/*\n * Builds the one-page health report from check results.\n * Markdown and HTML come from the same data. The HTML escapes everything,\n * because workflow and node names come from the instance and can't be trusted.\n */\n\nconst { summarize } = require('./checks');\n\nconst LABEL = { green: 'OK', amber: 'This month', red: 'This week' };\nconst DOT = { green: '🟢', amber: '🟠', red: '🔴' };\n\nconst CANT_SEE = [\n  'Environment variables, server settings and host-level backups (for example Docker volume snapshots).',\n  'What is inside your credentials. That is on purpose.',\n  'Runs that n8n has already deleted, or that a workflow is set not to save.',\n  'Whether a kill switch is wired correctly inside each workflow, only that it is called.',\n];\n\nfunction formatDate(nowIso, timeZone) {\n  const d = new Date(nowIso);\n  try {\n    return new Intl.DateTimeFormat('en-US', {\n      timeZone, year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit',\n    }).format(d) + ` (${timeZone})`;\n  } catch (e) {\n    return d.toISOString();\n  }\n}\n\nfunction itemText(item) {\n  return item.node ? `${item.workflow} / ${item.node}: ${item.detail}` : `${item.workflow}: ${item.detail}`;\n}\n\nfunction mdEscape(text) {\n  return String(text).replace(/([\\\\`*_[\\]|<>])/g, '\\\\$1');\n}\n\nfunction buildMarkdown(results, meta) {\n  const s = summarize(results);\n  const lines = [];\n  lines.push(`# Automation health check: ${mdEscape(meta.instanceName || 'n8n instance')}`);\n  lines.push('');\n  lines.push(`${formatDate(meta.now, meta.timeZone || 'Asia/Manila')}` +\n    (meta.version ? ` · n8n ${mdEscape(meta.version)}` : ''));\n  lines.push('');\n  lines.push(`**${s.line}**`);\n  lines.push('');\n  lines.push('| | Check | What we found | Fix |');\n  lines.push('|---|---|---|---|');\n  for (const r of results) {\n    const fix = r.status === 'green' ? '' : mdEscape(r.fix);\n    lines.push(`| ${DOT[r.status]} ${LABEL[r.status]} | ${r.number}. ${mdEscape(r.title)} | ${mdEscape(r.found)} | ${fix} |`);\n  }\n  const flagged = results.filter((r) => r.status !== 'green' && r.items.length);\n  if (flagged.length) {\n    lines.push('');\n    lines.push('## Details');\n    for (const r of flagged) {\n      lines.push('');\n      lines.push(`**${r.number}. ${mdEscape(r.title)}**: ${mdEscape(r.why)}`);\n      lines.push('');\n      for (const item of r.items) lines.push(`- ${mdEscape(itemText(item))}`);\n    }\n  }\n  lines.push('');\n  lines.push('## What this check can\\'t see');\n  lines.push('');\n  for (const c of CANT_SEE) lines.push(`- ${c}`);\n  lines.push('');\n  lines.push('_Read-only: this check changed nothing on the instance and never shows secret values._');\n  lines.push('');\n  return lines.join('\\n');\n}\n\nfunction esc(text) {\n  return String(text)\n    .replace(/&/g, '&amp;')\n    .replace(/</g, '&lt;')\n    .replace(/>/g, '&gt;')\n    .replace(/\"/g, '&quot;')\n    .replace(/'/g, '&#39;');\n}\n\nfunction buildHtml(results, meta) {\n  const s = summarize(results);\n  const rows = results.map((r) => `\n      <tr class=\"${r.status}\">\n        <td class=\"status\"><span class=\"dot\"></span>${LABEL[r.status]}</td>\n        <td><strong>${r.number}. ${esc(r.title)}</strong><div class=\"why\">${esc(r.why)}</div></td>\n        <td>${esc(r.found)}${r.status !== 'green' && r.items.length\n          ? `<ul>${r.items.map((i) => `<li>${esc(itemText(i))}</li>`).join('')}</ul>` : ''}</td>\n        <td>${r.status === 'green' ? '' : esc(r.fix)}</td>\n      </tr>`).join('');\n\n  return `<!doctype html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n<title>Automation health check</title>\n<style>\n  :root { --ink:#1d2433; --muted:#5b6475; --line:#e3e6ec; --bg:#ffffff;\n          --green:#1f9d55; --amber:#d97706; --red:#dc2626; }\n  body { font: 14px/1.45 system-ui, -apple-system, \"Segoe UI\", sans-serif; color: var(--ink);\n         background: var(--bg); margin: 0 auto; max-width: 960px; padding: 24px 16px; }\n  h1 { font-size: 20px; margin: 0 0 4px; }\n  .meta { color: var(--muted); margin-bottom: 16px; }\n  .summary { font-size: 16px; font-weight: 600; padding: 12px 14px; border: 1px solid var(--line);\n             border-radius: 8px; margin-bottom: 16px; }\n  table { width: 100%; border-collapse: collapse; }\n  th, td { text-align: left; vertical-align: top; padding: 8px; border-top: 1px solid var(--line); }\n  th { color: var(--muted); font-weight: 500; }\n  .status { white-space: nowrap; font-weight: 600; }\n  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }\n  .green .dot { background: var(--green); } .amber .dot { background: var(--amber); } .red .dot { background: var(--red); }\n  .why { color: var(--muted); font-size: 13px; margin-top: 2px; }\n  ul { margin: 6px 0 0; padding-left: 18px; }\n  footer { color: var(--muted); font-size: 13px; margin-top: 20px; }\n  @media print { body { padding: 0; } }\n</style>\n</head>\n<body>\n  <h1>Automation health check: ${esc(meta.instanceName || 'n8n instance')}</h1>\n  <div class=\"meta\">${esc(formatDate(meta.now, meta.timeZone || 'Asia/Manila'))}${meta.version ? ` · n8n ${esc(meta.version)}` : ''}</div>\n  <div class=\"summary\">${esc(s.line)}</div>\n  <table>\n    <thead><tr><th>Status</th><th>Check</th><th>What we found</th><th>Fix</th></tr></thead>\n    <tbody>${rows}\n    </tbody>\n  </table>\n  <footer>\n    <strong>What this check can't see:</strong>\n    <ul>${CANT_SEE.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>\n    <p>Read-only: this check changed nothing on the instance and never shows secret values.</p>\n  </footer>\n</body>\n</html>\n`;\n}\n\nmodule.exports = { buildMarkdown, buildHtml, CANT_SEE };\n\n  return module.exports;\n})();\n\n// ---- Code node entry point. Everything above this line is src/checks.js and src/report.js. ----\n// Read-only: this node only reads what the three n8n API nodes returned.\n\nconst CONFIG = {\n  instanceName: 'Marigold Row Rentals (demo)',\n  timeZone: 'Asia/Manila',\n  // Leave the health check itself and the other demo project out of the checks.\n  excludeWorkflowNames: ['Automation Health Check'],\n  excludeNamePrefix: 'Break My Agent',\n};\n\nconst workflows = $('Get workflows').all().map((i) => i.json);\nconst executions = $('Get executions').all().map((i) => i.json);\nconst auditItems = $('Security audit').all().map((i) => i.json);\nconst audit = auditItems.length ? auditItems[0] : null;\nconst now = new Date().toISOString();\n\nconst excludeNames = CONFIG.excludeWorkflowNames.concat(\n  workflows.map((w) => w.name).filter((name) => name.startsWith(CONFIG.excludeNamePrefix)));\n\nconst results = __checks.runChecks({ workflows, executions, audit, now, config: { excludeWorkflowNames: excludeNames } });\nconst meta = { instanceName: CONFIG.instanceName, now, timeZone: CONFIG.timeZone };\nconst stamp = now.slice(0, 16).replace(/[-:T]/g, '').replace(/^(\\d{8})(\\d{4})$/, '$1-$2');\n\nreturn [{\n  json: {\n    summary: __checks.summarize(results).line,\n    fileBase: `health-${stamp}`,\n    excludedWorkflows: excludeNames,\n    results,\n    markdown: __report.buildMarkdown(results, meta),\n    html: __report.buildHtml(results, meta),\n  },\n}];\n"
+      }
+    },
+    {
+      "id": "a0000000-0000-4000-8000-000000000006",
+      "name": "Markdown file",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        200
+      ],
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "markdown",
+        "options": {
+          "fileName": "={{ $json.fileBase }}.md"
+        }
+      }
+    },
+    {
+      "id": "a0000000-0000-4000-8000-000000000007",
+      "name": "HTML file",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        1100,
+        400
+      ],
+      "parameters": {
+        "operation": "toText",
+        "sourceProperty": "html",
+        "options": {
+          "fileName": "={{ $json.fileBase }}.html"
+        }
+      }
+    },
+    {
+      "id": "a0000000-0000-4000-8000-000000000008",
+      "name": "Save Markdown",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        200
+      ],
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/home/node/.n8n-files/reports/{{ $('Run checks').first().json.fileBase }}.md",
+        "dataPropertyName": "data",
+        "options": {}
+      }
+    },
+    {
+      "id": "a0000000-0000-4000-8000-000000000009",
+      "name": "Save HTML",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        400
+      ],
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/home/node/.n8n-files/reports/{{ $('Run checks').first().json.fileBase }}.html",
+        "dataPropertyName": "data",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Run health check": {
+      "main": [
+        [
+          {
+            "node": "Get workflows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get workflows": {
+      "main": [
+        [
+          {
+            "node": "Get executions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get executions": {
+      "main": [
+        [
+          {
+            "node": "Security audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Security audit": {
+      "main": [
+        [
+          {
+            "node": "Run checks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run checks": {
+      "main": [
+        [
+          {
+            "node": "Markdown file",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTML file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Markdown file": {
+      "main": [
+        [
+          {
+            "node": "Save Markdown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML file": {
+      "main": [
+        [
+          {
+            "node": "Save HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

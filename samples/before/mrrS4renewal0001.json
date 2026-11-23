@@ -1,0 +1,66 @@
+{
+  "id": "mrrS4renewal0001",
+  "name": "Lease renewal follow-up",
+  "active": false,
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8000-000000000004",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mrr-lease-renewal",
+        "options": {},
+        "authentication": "headerAuth"
+      },
+      "webhookId": "00000000-0000-4000-8000-000000000003",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "mrrCredHookDemo1",
+          "name": "Intake webhook secret (demo)"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000005",
+      "name": "Prepare follow-up",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prepare follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "mrrS7erralert001"
+  },
+  "tags": [
+    {
+      "name": "expect:hourly"
+    }
+  ],
+  "meta": {
+    "note": "Fictional demo workflow for the n8n Automation Health Check. Not a real business."
+  }
+}

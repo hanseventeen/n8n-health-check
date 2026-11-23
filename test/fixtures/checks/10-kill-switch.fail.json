@@ -1,0 +1,58 @@
+{
+  "description": "Outbound workflows and no kill switch.",
+  "expect": {
+    "check": 10,
+    "status": "red"
+  },
+  "now": "2026-11-20T09:00:00.000Z",
+  "workflows": [
+    {
+      "id": "wf-12",
+      "name": "Rent reminder SMS",
+      "active": true,
+      "nodes": [
+        {
+          "id": "schedule",
+          "name": "Schedule",
+          "type": "n8n-nodes-base.scheduleTrigger",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "rule": {
+              "interval": [
+                {
+                  "field": "days",
+                  "daysInterval": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "send-sms",
+          "name": "Send SMS",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "method": "GET",
+            "url": "https://api.example.com/units"
+          }
+        }
+      ],
+      "connections": {},
+      "settings": {},
+      "tags": [],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2026-10-21T09:00:00.000Z"
+    }
+  ],
+  "executions": [],
+  "audit": null
+}

@@ -1,0 +1,23 @@
+{
+  "description": "Inactive workflow edited 10 days ago is not abandoned.",
+  "expect": {
+    "check": 8,
+    "status": "green"
+  },
+  "now": "2026-11-20T09:00:00.000Z",
+  "workflows": [
+    {
+      "id": "wf-10",
+      "name": "Pet fee notice (in progress)",
+      "active": false,
+      "nodes": [],
+      "connections": {},
+      "settings": {},
+      "tags": [],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2026-11-10T09:00:00.000Z"
+    }
+  ],
+  "executions": [],
+  "audit": null
+}

@@ -1,0 +1,110 @@
+{
+  "id": "mrrS1intake00001",
+  "name": "Tenant maintenance intake",
+  "active": false,
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8000-000000000020",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mrr-maintenance",
+        "options": {},
+        "authentication": "headerAuth"
+      },
+      "webhookId": "00000000-0000-4000-8000-000000000019",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "mrrCredHookDemo1",
+          "name": "Intake webhook secret (demo)"
+        }
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000021",
+      "name": "Check kill switch",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "mrrKSkillswitch1",
+          "mode": "id"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000022",
+      "name": "Create ticket",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "options": {},
+        "url": "https://tickets.example.com/api/requests",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "unit",
+              "value": "={{ $json.body.unit }}"
+            },
+            {
+              "name": "issue",
+              "value": "={{ $json.body.issue }}"
+            }
+          ]
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Check kill switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check kill switch": {
+      "main": [
+        [
+          {
+            "node": "Create ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "mrrS7erralert001"
+  },
+  "tags": [],
+  "meta": {
+    "note": "Fictional demo workflow for the n8n Automation Health Check. Not a real business."
+  }
+}

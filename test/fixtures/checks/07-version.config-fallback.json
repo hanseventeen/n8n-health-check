@@ -1,0 +1,15 @@
+{
+  "description": "No audit; config says 2.42.7 vs 2.48.7.",
+  "expect": {
+    "check": 7,
+    "status": "amber"
+  },
+  "now": "2026-11-20T09:00:00.000Z",
+  "workflows": [],
+  "executions": [],
+  "audit": null,
+  "config": {
+    "currentVersion": "2.42.7",
+    "latestStableVersion": "2.48.7"
+  }
+}

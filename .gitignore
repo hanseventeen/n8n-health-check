@@ -1,0 +1,5 @@
+.env
+node_modules/
+*.log
+reports/live/smoke/
+LOOM-NOTES.md

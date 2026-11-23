@@ -1,0 +1,88 @@
+{
+  "description": "Hourly schedule ran 1 hour ago; webhook ran 2 days ago.",
+  "expect": {
+    "check": 3,
+    "status": "green"
+  },
+  "now": "2026-11-20T09:00:00.000Z",
+  "workflows": [
+    {
+      "id": "wf-4",
+      "name": "Lease renewal follow-up",
+      "active": true,
+      "nodes": [
+        {
+          "id": "schedule",
+          "name": "Schedule",
+          "type": "n8n-nodes-base.scheduleTrigger",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "rule": {
+              "interval": [
+                {
+                  "field": "hours",
+                  "hoursInterval": 1
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "connections": {},
+      "settings": {},
+      "tags": [],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2026-10-21T09:00:00.000Z"
+    },
+    {
+      "id": "wf-5",
+      "name": "Tenant intake",
+      "active": true,
+      "nodes": [
+        {
+          "id": "webhook",
+          "name": "Webhook",
+          "type": "n8n-nodes-base.webhook",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "path": "maintenance",
+            "httpMethod": "POST",
+            "authentication": "headerAuth"
+          }
+        }
+      ],
+      "connections": {},
+      "settings": {},
+      "tags": [],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2026-10-21T09:00:00.000Z"
+    }
+  ],
+  "executions": [
+    {
+      "id": "wf-4-0",
+      "workflowId": "wf-4",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-20T08:00:00.000Z",
+      "stoppedAt": "2026-11-20T08:00:36.000Z"
+    },
+    {
+      "id": "wf-5-0",
+      "workflowId": "wf-5",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-18T09:00:00.000Z",
+      "stoppedAt": "2026-11-18T09:00:36.000Z"
+    }
+  ],
+  "audit": null
+}

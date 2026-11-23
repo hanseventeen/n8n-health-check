@@ -1,0 +1,56 @@
+{
+  "id": "mrrKSkillswitch1",
+  "name": "Kill switch",
+  "active": false,
+  "nodes": [
+    {
+      "id": "00000000-0000-4000-8000-000000000012",
+      "name": "When called",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        300
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000013",
+      "name": "Switch is ON (let traffic through)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        220,
+        300
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "When called": {
+      "main": [
+        [
+          {
+            "node": "Switch is ON (let traffic through)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "mrrS7erralert001"
+  },
+  "tags": [
+    {
+      "name": "kill-switch"
+    }
+  ],
+  "meta": {
+    "note": "Fictional demo workflow for the n8n Automation Health Check. Not a real business."
+  }
+}

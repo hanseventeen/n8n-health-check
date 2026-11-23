@@ -1,0 +1,23 @@
+{
+  "description": "Inactive workflow not edited in 400 days.",
+  "expect": {
+    "check": 8,
+    "status": "amber"
+  },
+  "now": "2026-11-20T09:00:00.000Z",
+  "workflows": [
+    {
+      "id": "wf-10",
+      "name": "Old move-out checklist",
+      "active": false,
+      "nodes": [],
+      "connections": {},
+      "settings": {},
+      "tags": [],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2025-10-16T09:00:00.000Z"
+    }
+  ],
+  "executions": [],
+  "audit": null
+}

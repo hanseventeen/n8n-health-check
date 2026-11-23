@@ -1,0 +1,77 @@
+{
+  "description": "One node retries, the other has a timeout.",
+  "expect": {
+    "check": 6,
+    "status": "green"
+  },
+  "now": "2026-11-20T09:00:00.000Z",
+  "workflows": [
+    {
+      "id": "wf-9",
+      "name": "Owner statement sync",
+      "active": true,
+      "nodes": [
+        {
+          "id": "schedule",
+          "name": "Schedule",
+          "type": "n8n-nodes-base.scheduleTrigger",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "rule": {
+              "interval": [
+                {
+                  "field": "days",
+                  "daysInterval": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "get-units",
+          "name": "Get units",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "method": "GET",
+            "url": "https://api.example.com/units"
+          },
+          "retryOnFail": true,
+          "maxTries": 3
+        },
+        {
+          "id": "get-leases",
+          "name": "Get leases",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "method": "GET",
+            "url": "https://api.example.com/units",
+            "options": {
+              "timeout": 10000
+            }
+          }
+        }
+      ],
+      "connections": {},
+      "settings": {},
+      "tags": [],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2026-10-21T09:00:00.000Z"
+    }
+  ],
+  "executions": [],
+  "audit": null
+}

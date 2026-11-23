@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Automation health check</title>
+<style>
+  :root { --ink:#1d2433; --muted:#5b6475; --line:#e3e6ec; --bg:#ffffff;
+          --green:#1f9d55; --amber:#d97706; --red:#dc2626; }
+  body { font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink);
+         background: var(--bg); margin: 0 auto; max-width: 960px; padding: 24px 16px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .meta { color: var(--muted); margin-bottom: 16px; }
+  .summary { font-size: 16px; font-weight: 600; padding: 12px 14px; border: 1px solid var(--line);
+             border-radius: 8px; margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; vertical-align: top; padding: 8px; border-top: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; }
+  .status { white-space: nowrap; font-weight: 600; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+  .green .dot { background: var(--green); } .amber .dot { background: var(--amber); } .red .dot { background: var(--red); }
+  .why { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  ul { margin: 6px 0 0; padding-left: 18px; }
+  footer { color: var(--muted); font-size: 13px; margin-top: 20px; }
+  @media print { body { padding: 0; } }
+</style>
+</head>
+<body>
+  <h1>Automation health check: Marigold Row Rentals (demo)</h1>
+  <div class="meta">November 23, 2026 at 8:20 AM (Asia/Manila)</div>
+  <div class="summary">5 of 10 checks passed. 2 need attention this week, 3 this month.</div>
+  <table>
+    <thead><tr><th>Status</th><th>Check</th><th>What we found</th><th>Fix</th></tr></thead>
+    <tbody>
+      <tr class="green">
+        <td class="status"><span class="dot"></span>OK</td>
+        <td><strong>1. Error alerts set</strong><div class="why">When a workflow fails, nobody hears about it unless an error workflow sends an alert.</div></td>
+        <td>All 6 active workflows have an error workflow.</td>
+        <td></td>
+      </tr>
+      <tr class="red">
+        <td class="status"><span class="dot"></span>This week</td>
+        <td><strong>2. Failure rate (last 7 days)</strong><div class="why">A workflow that fails often is doing its job only some of the time.</div></td>
+        <td>2 workflows need a look.<ul><li>Daily vacancy report: 71 of 71 runs failed (100%)</li><li>Backup workflows to storage: 12 of 12 runs failed (100%)</li></ul></td>
+        <td>Open the failed runs, fix the most common error first, and turn on saving of failed runs so you can see them.</td>
+      </tr>
+      <tr class="amber">
+        <td class="status"><span class="dot"></span>This month</td>
+        <td><strong>3. Silently stopped workflows</strong><div class="why">A workflow can look switched on while nothing is actually reaching it, so it fails without any error.</div></td>
+        <td>1 active workflow looks switched on, but nothing has run.<ul><li>Lease renewal follow-up: has never run, and it has been over 2 hours</li></ul></td>
+        <td>Check that the trigger still fires: the webhook URL is still in use, the schedule is right, and the app sending data has not changed.</td>
+      </tr>
+      <tr class="green">
+        <td class="status"><span class="dot"></span>OK</td>
+        <td><strong>4. Keys typed into nodes</strong><div class="why">A key typed into a node is visible to anyone who can open or export the workflow.</div></td>
+        <td>No key-like values found in node settings.</td>
+        <td></td>
+      </tr>
+      <tr class="green">
+        <td class="status"><span class="dot"></span>OK</td>
+        <td><strong>5. Webhooks with no login</strong><div class="why">Anyone who finds the URL can send fake data in and trigger the workflow.</div></td>
+        <td>All live webhooks require authentication.</td>
+        <td></td>
+      </tr>
+      <tr class="green">
+        <td class="status"><span class="dot"></span>OK</td>
+        <td><strong>6. HTTP calls with no retry or timeout</strong><div class="why">One slow or flaky API call can hang or kill the whole run.</div></td>
+        <td>All 4 HTTP Request nodes have a retry or a timeout.</td>
+        <td></td>
+      </tr>
+      <tr class="amber">
+        <td class="status"><span class="dot"></span>This month</td>
+        <td><strong>7. n8n version up to date</strong><div class="why">Old versions miss bug fixes, and sometimes security fixes.</div></td>
+        <td>6 newer versions available.<ul><li>(instance): 2.48.7</li><li>(instance): 2.47.7</li><li>(instance): 2.46.7</li><li>(instance): 2.45.7</li><li>(instance): 2.44.7</li><li>(instance): 2.43.8</li></ul></td>
+        <td>Plan an upgrade: back up first, read the release notes for breaking changes, and test on a copy before the real instance.</td>
+      </tr>
+      <tr class="green">
+        <td class="status"><span class="dot"></span>OK</td>
+        <td><strong>8. Abandoned workflows</strong><div class="why">Old, switched-off workflows make it harder to see what is really running, and may still hold old keys.</div></td>
+        <td>No inactive workflows older than 90 days.</td>
+        <td></td>
+      </tr>
+      <tr class="red">
+        <td class="status"><span class="dot"></span>This week</td>
+        <td><strong>9. Backup workflow running</strong><div class="why">If the server dies, a backup is the only way to get your workflows back.</div></td>
+        <td>The most recent backup run failed.<ul><li>Backup workflows to storage: active, last run error at 2026-11-23 00:00 UTC</li></ul></td>
+        <td>Keep one workflow that exports all workflows on a schedule to storage outside this server, with an error alert on it.</td>
+      </tr>
+      <tr class="amber">
+        <td class="status"><span class="dot"></span>This month</td>
+        <td><strong>10. Kill switch in place</strong><div class="why">If something goes wrong (a loop, a bad message, a leaked key), you need one place to stop everything that sends.</div></td>
+        <td>Kill switch found, but 3 of 4 outbound workflows skip it.<ul><li>Rent reminder SMS: sends data out without checking the kill switch</li><li>Daily vacancy report: sends data out without checking the kill switch</li><li>Backup workflows to storage: sends data out without checking the kill switch</li></ul></td>
+        <td>Add an Execute Workflow node that calls the kill switch at the start of each workflow listed below.</td>
+      </tr>
+    </tbody>
+  </table>
+  <footer>
+    <strong>What this check can't see:</strong>
+    <ul><li>Environment variables, server settings and host-level backups (for example Docker volume snapshots).</li><li>What is inside your credentials. That is on purpose.</li><li>Runs that n8n has already deleted, or that a workflow is set not to save.</li><li>Whether a kill switch is wired correctly inside each workflow, only that it is called.</li></ul>
+    <p>Read-only: this check changed nothing on the instance and never shows secret values.</p>
+  </footer>
+</body>
+</html>

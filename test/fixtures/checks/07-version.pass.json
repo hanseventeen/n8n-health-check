@@ -1,0 +1,23 @@
+{
+  "description": "Audit lists no newer versions.",
+  "expect": {
+    "check": 7,
+    "status": "green"
+  },
+  "now": "2026-11-20T09:00:00.000Z",
+  "workflows": [],
+  "executions": [],
+  "audit": {
+    "Instance Risk Report": {
+      "risk": "instance",
+      "sections": [
+        {
+          "title": "Outdated instance",
+          "description": "This n8n instance is outdated.",
+          "recommendation": "Update.",
+          "nextVersions": []
+        }
+      ]
+    }
+  }
+}

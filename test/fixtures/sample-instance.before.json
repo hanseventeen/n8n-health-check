@@ -1,0 +1,598 @@
+{
+  "description": "Marigold Row Rentals demo instance, before fixes. Fictional.",
+  "instanceName": "Marigold Row Rentals (demo)",
+  "version": "2.42.7",
+  "now": "2026-11-20T09:00:00.000Z",
+  "workflows": [
+    {
+      "id": "s1",
+      "name": "Tenant maintenance intake",
+      "active": true,
+      "nodes": [
+        {
+          "id": "webhook",
+          "name": "Webhook",
+          "type": "n8n-nodes-base.webhook",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "path": "maintenance",
+            "httpMethod": "POST"
+          }
+        },
+        {
+          "id": "create-ticket",
+          "name": "Create ticket",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "method": "POST",
+            "url": "https://tickets.example.com/api"
+          },
+          "retryOnFail": true
+        }
+      ],
+      "connections": {},
+      "settings": {},
+      "tags": [],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2026-10-21T09:00:00.000Z"
+    },
+    {
+      "id": "s2",
+      "name": "Rent reminder SMS",
+      "active": true,
+      "nodes": [
+        {
+          "id": "schedule",
+          "name": "Schedule",
+          "type": "n8n-nodes-base.scheduleTrigger",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "rule": {
+              "interval": [
+                {
+                  "field": "days",
+                  "daysInterval": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "send-sms",
+          "name": "Send SMS",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "method": "POST",
+            "url": "https://sms.example.com/send",
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Authorization",
+                  "value": "Bearer sk-demo-FAKE0000000000000000"
+                }
+              ]
+            },
+            "bodyParameters": {
+              "parameters": [
+                {
+                  "name": "to",
+                  "value": "+1-555-0142"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "connections": {},
+      "settings": {
+        "errorWorkflow": "s7"
+      },
+      "tags": [],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2026-10-21T09:00:00.000Z"
+    },
+    {
+      "id": "s3",
+      "name": "Daily vacancy report",
+      "active": true,
+      "nodes": [
+        {
+          "id": "schedule",
+          "name": "Schedule",
+          "type": "n8n-nodes-base.scheduleTrigger",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "rule": {
+              "interval": [
+                {
+                  "field": "minutes",
+                  "minutesInterval": 5
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "get-vacancies",
+          "name": "Get vacancies",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "method": "GET",
+            "url": "https://broken.example.com/vacancies"
+          },
+          "retryOnFail": true
+        }
+      ],
+      "connections": {},
+      "settings": {
+        "errorWorkflow": "s7"
+      },
+      "tags": [],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2026-10-21T09:00:00.000Z"
+    },
+    {
+      "id": "s4",
+      "name": "Lease renewal follow-up",
+      "active": true,
+      "nodes": [
+        {
+          "id": "webhook",
+          "name": "Webhook",
+          "type": "n8n-nodes-base.webhook",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "path": "maintenance",
+            "httpMethod": "POST",
+            "authentication": "headerAuth"
+          }
+        }
+      ],
+      "connections": {},
+      "settings": {
+        "errorWorkflow": "s7"
+      },
+      "tags": [
+        {
+          "id": "t-expect:hourly",
+          "name": "expect:hourly"
+        }
+      ],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2026-11-20T04:00:00.000Z"
+    },
+    {
+      "id": "s5",
+      "name": "Old move-out checklist",
+      "active": false,
+      "nodes": [],
+      "connections": {},
+      "settings": {},
+      "tags": [],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2026-05-04T09:00:00.000Z"
+    },
+    {
+      "id": "s6",
+      "name": "Nightly backup to storage",
+      "active": true,
+      "nodes": [
+        {
+          "id": "schedule",
+          "name": "Schedule",
+          "type": "n8n-nodes-base.scheduleTrigger",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "rule": {
+              "interval": [
+                {
+                  "field": "days",
+                  "daysInterval": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "upload-export",
+          "name": "Upload export",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "method": "POST",
+            "url": "https://storage.example.com/upload",
+            "options": {
+              "timeout": 30000
+            }
+          }
+        }
+      ],
+      "connections": {},
+      "settings": {
+        "errorWorkflow": "s7"
+      },
+      "tags": [
+        {
+          "id": "t-backup",
+          "name": "backup"
+        }
+      ],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2026-10-21T09:00:00.000Z"
+    },
+    {
+      "id": "s7",
+      "name": "Error alert handler",
+      "active": true,
+      "nodes": [
+        {
+          "id": "error-trigger",
+          "name": "Error Trigger",
+          "type": "n8n-nodes-base.errorTrigger",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {}
+        },
+        {
+          "id": "post-alert",
+          "name": "Post alert",
+          "type": "n8n-nodes-base.slack",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "text": "A workflow failed"
+          }
+        }
+      ],
+      "connections": {},
+      "settings": {},
+      "tags": [],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2026-10-21T09:00:00.000Z"
+    }
+  ],
+  "executions": [
+    {
+      "id": "s1-0",
+      "workflowId": "s1",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-20T08:00:00.000Z",
+      "stoppedAt": "2026-11-20T08:00:36.000Z"
+    },
+    {
+      "id": "s1-1",
+      "workflowId": "s1",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-20T04:00:00.000Z",
+      "stoppedAt": "2026-11-20T04:00:36.000Z"
+    },
+    {
+      "id": "s1-2",
+      "workflowId": "s1",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-20T00:00:00.000Z",
+      "stoppedAt": "2026-11-20T00:00:36.000Z"
+    },
+    {
+      "id": "s1-3",
+      "workflowId": "s1",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-19T20:00:00.000Z",
+      "stoppedAt": "2026-11-19T20:00:36.000Z"
+    },
+    {
+      "id": "s1-4",
+      "workflowId": "s1",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-19T16:00:00.000Z",
+      "stoppedAt": "2026-11-19T16:00:36.000Z"
+    },
+    {
+      "id": "s1-5",
+      "workflowId": "s1",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-19T12:00:00.000Z",
+      "stoppedAt": "2026-11-19T12:00:36.000Z"
+    },
+    {
+      "id": "s1-6",
+      "workflowId": "s1",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-19T08:00:00.000Z",
+      "stoppedAt": "2026-11-19T08:00:36.000Z"
+    },
+    {
+      "id": "s1-7",
+      "workflowId": "s1",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-19T04:00:00.000Z",
+      "stoppedAt": "2026-11-19T04:00:36.000Z"
+    },
+    {
+      "id": "s1-8",
+      "workflowId": "s1",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-19T00:00:00.000Z",
+      "stoppedAt": "2026-11-19T00:00:36.000Z"
+    },
+    {
+      "id": "s1-9",
+      "workflowId": "s1",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-18T20:00:00.000Z",
+      "stoppedAt": "2026-11-18T20:00:36.000Z"
+    },
+    {
+      "id": "s1-10",
+      "workflowId": "s1",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-18T16:00:00.000Z",
+      "stoppedAt": "2026-11-18T16:00:36.000Z"
+    },
+    {
+      "id": "s1-11",
+      "workflowId": "s1",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-18T12:00:00.000Z",
+      "stoppedAt": "2026-11-18T12:00:36.000Z"
+    },
+    {
+      "id": "s2-0",
+      "workflowId": "s2",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-20T08:00:00.000Z",
+      "stoppedAt": "2026-11-20T08:00:36.000Z"
+    },
+    {
+      "id": "s2-1",
+      "workflowId": "s2",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-19T08:00:00.000Z",
+      "stoppedAt": "2026-11-19T08:00:36.000Z"
+    },
+    {
+      "id": "s2-2",
+      "workflowId": "s2",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-18T08:00:00.000Z",
+      "stoppedAt": "2026-11-18T08:00:36.000Z"
+    },
+    {
+      "id": "s2-3",
+      "workflowId": "s2",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-17T08:00:00.000Z",
+      "stoppedAt": "2026-11-17T08:00:36.000Z"
+    },
+    {
+      "id": "s2-4",
+      "workflowId": "s2",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-16T08:00:00.000Z",
+      "stoppedAt": "2026-11-16T08:00:36.000Z"
+    },
+    {
+      "id": "s2-5",
+      "workflowId": "s2",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-15T08:00:00.000Z",
+      "stoppedAt": "2026-11-15T08:00:36.000Z"
+    },
+    {
+      "id": "s2-6",
+      "workflowId": "s2",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-14T08:00:00.000Z",
+      "stoppedAt": "2026-11-14T08:00:36.000Z"
+    },
+    {
+      "id": "s3-0",
+      "workflowId": "s3",
+      "status": "error",
+      "mode": "trigger",
+      "startedAt": "2026-11-20T08:57:00.000Z",
+      "stoppedAt": "2026-11-20T08:57:36.000Z"
+    },
+    {
+      "id": "s3-1",
+      "workflowId": "s3",
+      "status": "error",
+      "mode": "trigger",
+      "startedAt": "2026-11-20T08:52:12.000Z",
+      "stoppedAt": "2026-11-20T08:52:48.000Z"
+    },
+    {
+      "id": "s3-2",
+      "workflowId": "s3",
+      "status": "error",
+      "mode": "trigger",
+      "startedAt": "2026-11-20T08:47:24.000Z",
+      "stoppedAt": "2026-11-20T08:48:00.000Z"
+    },
+    {
+      "id": "s3-3",
+      "workflowId": "s3",
+      "status": "error",
+      "mode": "trigger",
+      "startedAt": "2026-11-20T08:42:36.000Z",
+      "stoppedAt": "2026-11-20T08:43:12.000Z"
+    },
+    {
+      "id": "s3-4",
+      "workflowId": "s3",
+      "status": "error",
+      "mode": "trigger",
+      "startedAt": "2026-11-20T08:37:48.000Z",
+      "stoppedAt": "2026-11-20T08:38:24.000Z"
+    },
+    {
+      "id": "s3-5",
+      "workflowId": "s3",
+      "status": "error",
+      "mode": "trigger",
+      "startedAt": "2026-11-20T08:33:00.000Z",
+      "stoppedAt": "2026-11-20T08:33:36.000Z"
+    },
+    {
+      "id": "s3-6",
+      "workflowId": "s3",
+      "status": "error",
+      "mode": "trigger",
+      "startedAt": "2026-11-20T08:28:12.000Z",
+      "stoppedAt": "2026-11-20T08:28:48.000Z"
+    },
+    {
+      "id": "s3-7",
+      "workflowId": "s3",
+      "status": "error",
+      "mode": "trigger",
+      "startedAt": "2026-11-20T08:23:24.000Z",
+      "stoppedAt": "2026-11-20T08:24:00.000Z"
+    },
+    {
+      "id": "s3-8",
+      "workflowId": "s3",
+      "status": "error",
+      "mode": "trigger",
+      "startedAt": "2026-11-20T08:18:36.000Z",
+      "stoppedAt": "2026-11-20T08:19:12.000Z"
+    },
+    {
+      "id": "s3-9",
+      "workflowId": "s3",
+      "status": "error",
+      "mode": "trigger",
+      "startedAt": "2026-11-20T08:13:48.000Z",
+      "stoppedAt": "2026-11-20T08:14:24.000Z"
+    },
+    {
+      "id": "s3-10",
+      "workflowId": "s3",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-20T08:09:00.000Z",
+      "stoppedAt": "2026-11-20T08:09:36.000Z"
+    },
+    {
+      "id": "s3-11",
+      "workflowId": "s3",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-20T08:04:12.000Z",
+      "stoppedAt": "2026-11-20T08:04:48.000Z"
+    },
+    {
+      "id": "s6-0",
+      "workflowId": "s6",
+      "status": "error",
+      "mode": "trigger",
+      "startedAt": "2026-11-20T00:00:00.000Z",
+      "stoppedAt": "2026-11-20T00:00:36.000Z"
+    },
+    {
+      "id": "s6-1",
+      "workflowId": "s6",
+      "status": "error",
+      "mode": "trigger",
+      "startedAt": "2026-11-19T00:00:00.000Z",
+      "stoppedAt": "2026-11-19T00:00:36.000Z"
+    },
+    {
+      "id": "s6-2",
+      "workflowId": "s6",
+      "status": "success",
+      "mode": "trigger",
+      "startedAt": "2026-11-18T00:00:00.000Z",
+      "stoppedAt": "2026-11-18T00:00:36.000Z"
+    }
+  ],
+  "audit": {
+    "Instance Risk Report": {
+      "risk": "instance",
+      "sections": [
+        {
+          "title": "Outdated instance",
+          "description": "This n8n instance is outdated.",
+          "recommendation": "Update.",
+          "nextVersions": [
+            {
+              "name": "2.48.7",
+              "nodes": [],
+              "createdAt": "2026-11-10T09:00:00.000Z",
+              "description": "",
+              "documentationUrl": "https://docs.n8n.io/release-notes",
+              "hasBreakingChange": false,
+              "hasSecurityFix": true,
+              "hasSecurityIssue": false,
+              "securityIssueFixVersion": ""
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

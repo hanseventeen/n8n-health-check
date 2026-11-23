@@ -1,0 +1,13 @@
+{
+  "name": "n8n-automation-health-check",
+  "version": "0.1.0",
+  "description": "Read-only health check for an n8n instance, with a one-page report for business owners.",
+  "private": true,
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test",
+    "build:workflow": "node scripts/build-workflow.js",
+    "report:sample": "node bin/report-offline.js test/fixtures/sample-instance.before.json reports/sample"
+  }
+}

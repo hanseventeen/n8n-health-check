@@ -1,0 +1,139 @@
+{
+  "description": "Every outbound workflow calls the kill switch first.",
+  "expect": {
+    "check": 10,
+    "status": "green"
+  },
+  "now": "2026-11-20T09:00:00.000Z",
+  "workflows": [
+    {
+      "id": "wf-ks",
+      "name": "Kill switch",
+      "active": true,
+      "nodes": [
+        {
+          "id": "when-called",
+          "name": "When called",
+          "type": "n8n-nodes-base.executeWorkflowTrigger",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {}
+        }
+      ],
+      "connections": {},
+      "settings": {},
+      "tags": [
+        {
+          "id": "t-kill-switch",
+          "name": "kill-switch"
+        }
+      ],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2026-10-21T09:00:00.000Z"
+    },
+    {
+      "id": "wf-err",
+      "name": "Error alert handler",
+      "active": true,
+      "nodes": [
+        {
+          "id": "error-trigger",
+          "name": "Error Trigger",
+          "type": "n8n-nodes-base.errorTrigger",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {}
+        },
+        {
+          "id": "post-alert",
+          "name": "Post alert",
+          "type": "n8n-nodes-base.slack",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "text": "A workflow failed"
+          }
+        }
+      ],
+      "connections": {},
+      "settings": {},
+      "tags": [],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2026-10-21T09:00:00.000Z"
+    },
+    {
+      "id": "wf-12",
+      "name": "Rent reminder SMS",
+      "active": true,
+      "nodes": [
+        {
+          "id": "schedule",
+          "name": "Schedule",
+          "type": "n8n-nodes-base.scheduleTrigger",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "rule": {
+              "interval": [
+                {
+                  "field": "days",
+                  "daysInterval": 1
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "check-kill-switch",
+          "name": "Check kill switch",
+          "type": "n8n-nodes-base.executeWorkflow",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "workflowId": {
+              "__rl": true,
+              "value": "wf-ks",
+              "mode": "id"
+            }
+          }
+        },
+        {
+          "id": "send-sms",
+          "name": "Send SMS",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 1,
+          "position": [
+            0,
+            0
+          ],
+          "parameters": {
+            "method": "GET",
+            "url": "https://api.example.com/units"
+          }
+        }
+      ],
+      "connections": {},
+      "settings": {},
+      "tags": [],
+      "createdAt": "2026-05-04T09:00:00.000Z",
+      "updatedAt": "2026-10-21T09:00:00.000Z"
+    }
+  ],
+  "executions": [],
+  "audit": null
+}
